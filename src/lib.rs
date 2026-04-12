@@ -1,13 +1,11 @@
+mod arena;
 mod command;
 mod config;
 mod data;
 mod game;
 
-use crate::config::{CONFIG_FILE_NAME, Configuration};
 use crate::data::SpleefData;
-use crate::game::ActiveGame;
 use pumpkin_plugin_api::{Context, Plugin, PluginMetadata};
-use std::path::PathBuf;
 use tracing::*;
 
 struct SpleefPlugin;

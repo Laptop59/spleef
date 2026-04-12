@@ -407,6 +407,7 @@ dependencies = [
  "pumpkin-plugin-api",
  "serde",
  "serde_json",
+ "thiserror",
  "tracing",
  "uuid",
 ]

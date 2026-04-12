@@ -1,13 +1,12 @@
-use pumpkin_plugin_api::server::Player;
-use pumpkin_plugin_api::world::BlockPos;
+use crate::arena::Arena;
+use pumpkin_plugin_api::command::CommandError;
+use pumpkin_plugin_api::text::TextComponent;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{ErrorKind, Read, Write};
-use std::num::NonZero;
 use std::path::Path;
+use thiserror::Error;
 
 pub static CONFIG_FILE_NAME: &str = "config.json";
 
@@ -15,8 +14,28 @@ pub static CONFIG_FILE_NAME: &str = "config.json";
 /// of the plugin that will persist between server restarts.
 #[derive(Serialize, Deserialize, Default)]
 pub struct Configuration {
-    /// Represents possible arenas where the game will take place.
-    pub arenas: HashMap<String, Arena>,
+    arenas: HashMap<String, Arena>,
+}
+
+#[derive(Debug, Error)]
+pub enum ArenaError {
+    /// No arena exists with the given name.
+    #[error("No such arena exists with the name {0}!")]
+    NoSuchArena(String),
+
+    /// An arena already exists with the given name.
+    #[error("An arena already exists with the name {0}!")]
+    AlreadyExists(String),
+
+    /// A game is already using this arena.
+    #[error("A game has already occupied this arena!")]
+    Occupied,
+}
+
+impl ArenaError {
+    pub fn command_error(self) -> CommandError {
+        CommandError::CommandFailed(TextComponent::text(&self.to_string()))
+    }
 }
 
 impl Configuration {
@@ -78,143 +97,62 @@ impl Configuration {
             Configuration::default()
         })
     }
-}
 
-/// Represents an arena. Up to a maximum
-/// of one game can take place at an arena, at a time.
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct Arena {
-    /// The region compromising the entire arena.
-    pub region: Option<Region>,
-
-    /// Represents the floors of breakable blocks in the arena.
-    pub floors: Vec<Region>,
-
-    /// Represents an optional death zone.
-    /// This is optional because blocks like lava
-    /// kill the player anyway.
-    pub death_zone: Option<Region>,
-
-    /// Represents the spawn location of the players upon the game starting.
-    pub spawn: Option<Location>,
-
-    /// Represents the lobby location of the players before the game starts.
-    /// If unspecified, this will default to the spawn point.
-    pub lobby: Option<Location>,
-
-    /// Minimum number of players required to start the game.
-    /// If [`None`], this is assumed to be 2.
-    pub min_players: Option<NonZero<usize>>,
-
-    /// Maximum number of players required to start the game.
-    /// If [`None`], this is assumed to be infinity.
-    pub max_players: Option<NonZero<usize>>,
-}
-
-impl Arena {
-    pub fn is_playable(&self) -> bool {
-        self.region.is_some() && !self.floors.is_empty() && self.spawn.is_some()
-    }
-
-    pub fn min_players(&self) -> usize {
-        self.min_players.map(NonZero::get).unwrap_or(2)
-    }
-
-    pub fn max_players(&self) -> Option<usize> {
-        self.max_players.map(NonZero::get)
-    }
-
-    pub fn spawn(&self) -> Option<Location> {
-        self.spawn
-    }
-
-    pub fn lobby(&self) -> Option<Location> {
-        self.lobby.or(self.spawn)
-    }
-}
-
-/// Represents a three-dimensional rectangular region of blocks.
-///
-/// Block position `1` contains the minimum of the coordinates,
-/// while block position `2` contains the maximum of the coordinates.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub struct Region {
-    pub x1: i32,
-    pub y1: i32,
-    pub z1: i32,
-    pub x2: i32,
-    pub y2: i32,
-    pub z2: i32,
-}
-
-/// Represents a 3D location which includes the x, y, and z coordinates of the player's
-/// position along with their pitch and yaw.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
-pub struct Location {
-    pub x: f64,
-    pub y: f64,
-    pub z: f64,
-    pub yaw: f32,
-    pub pitch: f32,
-}
-
-impl Location {
-    pub fn from_player(player: &Player) -> Location {
-        let (x, y, z) = player.get_position();
-        Location {
-            x,
-            y,
-            z,
-            yaw: player.get_yaw(),
-            pitch: player.get_pitch(),
-        }
-    }
-}
-
-impl fmt::Display for Location {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{:.2}, {:.2}, {:.2} [{:.2}, {:.2}]",
-            self.x, self.y, self.z, self.yaw, self.pitch
-        )
-    }
-}
-
-impl Region {
-    /// Constructs a new region between two block positions.
-    pub fn new(pos1: &BlockPos, pos2: &BlockPos) -> Self {
-        let (x1, x2) = Self::min_max(pos1.x, pos2.x);
-        let (y1, y2) = Self::min_max(pos1.y, pos2.y);
-        let (z1, z2) = Self::min_max(pos1.z, pos2.z);
-
-        Self {
-            x1,
-            y1,
-            z1,
-            x2,
-            y2,
-            z2,
-        }
-    }
-
-    /// Provides the required `(minimum, maximum)` tuple according
-    /// to the values of the coordinates given in an axis.
-    fn min_max(coordinate1: i32, coordinate2: i32) -> (i32, i32) {
-        if coordinate1 < coordinate2 {
-            (coordinate1, coordinate2)
+    /// Attempts to create a new arena with the specified name
+    /// with the default settings. Returns `true` if it succeeded.
+    pub fn create_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
+        if self.arenas.contains_key(arena) {
+            Err(ArenaError::AlreadyExists(arena.to_string()))
         } else {
-            (coordinate2, coordinate1)
+            self.arenas.insert(arena.to_string(), Arena::default());
+            Ok(())
         }
     }
 
-    /// Checks if the provided block position is inside the region.
-    fn contains(&self, pos: &BlockPos) -> bool {
-        self.x1 <= pos.x
-            && pos.x <= self.x2
-            && self.y1 <= pos.y
-            && pos.y <= self.y2
-            && self.z1 <= pos.z
-            && pos.z <= self.z2
+    /// Attempts to delete an arena with the specified name
+    /// with the default settings. Fails if a game is already active on it
+    pub fn delete_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
+        if self.arenas.contains_key(arena) {
+            Err(ArenaError::NoSuchArena(arena.to_string()))
+        } else {
+            if self.arenas[arena].locked {
+                Err(ArenaError::Occupied)
+            } else {
+                self.arenas.remove(arena);
+                Ok(())
+            }
+        }
+    }
+
+    /// Returns if an arena exists with the provided name.
+    pub fn arena_exists(&self, arena: &str) -> bool {
+        self.arenas.contains_key(arena)
+    }
+
+    /// Returns a list of all the arenas' names.
+    pub fn list_arenas(&self) -> Vec<&str> {
+        self.arenas.keys().map(|key| key.as_str()).collect()
+    }
+
+    /// Attempts to get a read-only reference to an arena.
+    /// Fails if the arena doesn't exist.
+    pub fn get_arena_ref(&self, arena: &str) -> Result<&Arena, ArenaError> {
+        self.arenas
+            .get(arena)
+            .ok_or_else(|| ArenaError::NoSuchArena(arena.to_string()))
+    }
+
+    /// Attempts to get a mutable reference to an arena. Fails
+    /// if a game is already active on it, or if the arena doesn't exist.
+    pub fn get_arena_mut(&mut self, arena: &str) -> Result<&mut Arena, ArenaError> {
+        if let Some(arena) = self.arenas.get_mut(arena) {
+            if arena.locked {
+                Err(ArenaError::Occupied)
+            } else {
+                Ok(arena)
+            }
+        } else {
+            Err(ArenaError::NoSuchArena(arena.to_string()))
+        }
     }
 }
