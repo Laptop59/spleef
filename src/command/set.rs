@@ -1,6 +1,7 @@
+use crate::arena::ArenaError;
 use crate::arena::{Arena, Location};
 use crate::command::{ARG_ARENA, ARG_FROM, ARG_TO, ARG_VALUE, parse_generic_region};
-use crate::config::ArenaError;
+use crate::data::OK_COLOR;
 use crate::data::SpleefData;
 use pumpkin_plugin_api::command::{CommandError, CommandNode, CommandSender, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::{Arg, ArgumentType, Number, StringType};
@@ -45,7 +46,7 @@ impl CommandHandler for SetLocationCommandExecutor {
 
         sender.send_message({
             let text = TextComponent::text(&format!("Set the {name} location to "));
-            text.color_named(NamedColor::Green);
+            text.color_rgb(OK_COLOR);
             text.add_child({
                 let text2 = TextComponent::text(&new_location.to_string());
                 text2.color_named(NamedColor::White);
@@ -54,6 +55,7 @@ impl CommandHandler for SetLocationCommandExecutor {
             text.add_text(".");
             text
         });
+
         Ok(1)
     }
 }
@@ -112,7 +114,7 @@ impl CommandHandler for SetIntegerCommandExecutor {
         if let Some(value) = value {
             sender.send_message({
                 let text = TextComponent::text(&format!("Set the {name} to "));
-                text.color_named(NamedColor::Green);
+                text.color_rgb(OK_COLOR);
                 text.add_child({
                     let text2 = TextComponent::text(&value.to_string());
                     text2.color_named(NamedColor::White);
@@ -124,7 +126,7 @@ impl CommandHandler for SetIntegerCommandExecutor {
         } else {
             sender.send_message({
                 let text = TextComponent::text(&format!("Reset the {name} to its default value "));
-                text.color_named(NamedColor::Green);
+                text.color_rgb(OK_COLOR);
                 text.add_child({
                     let text2 = TextComponent::text(default_value);
                     text2.color_named(NamedColor::White);
@@ -176,7 +178,7 @@ impl CommandHandler for SetRegionCommandExecutor {
         if let Some(region) = region {
             sender.send_message({
                 let text = TextComponent::text(&format!("Set the {name} to the region "));
-                text.color_named(NamedColor::Green);
+                text.color_rgb(OK_COLOR);
                 text.add_child({
                     let text2 = TextComponent::text(&region.to_string());
                     text2.color_named(NamedColor::White);
@@ -188,7 +190,7 @@ impl CommandHandler for SetRegionCommandExecutor {
         } else {
             sender.send_message({
                 let text = TextComponent::text(&format!("Cleared the {name}."));
-                text.color_named(NamedColor::Green);
+                text.color_rgb(OK_COLOR);
                 text
             });
         }
@@ -234,7 +236,7 @@ impl CommandHandler for SetMaterialCommandExecutor {
             } else {
                 TextComponent::text("Set the materials used for the arena to the blocks ")
             };
-            text.color_named(NamedColor::Green);
+            text.color_rgb(OK_COLOR);
             text.add_child({
                 let text2 = TextComponent::text(&arena.materials.join(", "));
                 text2.color_named(NamedColor::White);

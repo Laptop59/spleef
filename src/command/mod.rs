@@ -1,16 +1,27 @@
 use crate::arena::Region;
 use crate::command::add::add;
+use crate::command::join::join;
+use crate::command::list::list;
+use crate::command::remove::remove;
 use crate::command::set::set;
+use crate::command::status::status;
 use pumpkin_plugin_api::command::{Command, CommandError, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::Arg;
+use crate::command::leave::leave;
 
 mod add;
+mod join;
+mod list;
+mod leave;
+mod remove;
 mod set;
+mod status;
 
 pub static ARG_ARENA: &str = "arena";
 pub static ARG_VALUE: &str = "value";
 pub static ARG_FROM: &str = "from";
 pub static ARG_TO: &str = "to";
+pub static ARG_TARGET: &str = "target";
 
 pub fn parse_generic_region(
     args: &ConsumedArgs,
@@ -34,6 +45,11 @@ pub fn init_command_tree() -> Command {
 
     let command = Command::new(&names, description);
     command.then(add());
+    command.then(join());
+    command.then(list());
+    command.then(leave());
     command.then(set());
+    command.then(status());
+    command.then(remove());
     command
 }

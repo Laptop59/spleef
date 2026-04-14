@@ -1,12 +1,9 @@
-use crate::arena::Arena;
-use pumpkin_plugin_api::command::CommandError;
-use pumpkin_plugin_api::text::TextComponent;
+use crate::arena::{Arena, ArenaError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{ErrorKind, Read, Write};
 use std::path::Path;
-use thiserror::Error;
 
 pub static CONFIG_FILE_NAME: &str = "config.json";
 
@@ -15,27 +12,6 @@ pub static CONFIG_FILE_NAME: &str = "config.json";
 #[derive(Serialize, Deserialize, Default)]
 pub struct Configuration {
     arenas: HashMap<String, Arena>,
-}
-
-#[derive(Debug, Error)]
-pub enum ArenaError {
-    /// No arena exists with the given name.
-    #[error("No such arena exists with the name {0}!")]
-    NoSuchArena(String),
-
-    /// An arena already exists with the given name.
-    #[error("An arena already exists with the name {0}!")]
-    AlreadyExists(String),
-
-    /// A game is already using this arena.
-    #[error("A game has already occupied this arena!")]
-    Occupied,
-}
-
-impl ArenaError {
-    pub fn command_error(self) -> CommandError {
-        CommandError::CommandFailed(TextComponent::text(&self.to_string()))
-    }
 }
 
 impl Configuration {
@@ -100,7 +76,7 @@ impl Configuration {
 
     /// Attempts to create a new arena with the specified name
     /// with the default settings. Returns `true` if it succeeded.
-    pub fn create_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
+    pub fn add_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
         if self.arenas.contains_key(arena) {
             Err(ArenaError::AlreadyExists(arena.to_string()))
         } else {
@@ -111,11 +87,11 @@ impl Configuration {
 
     /// Attempts to delete an arena with the specified name
     /// with the default settings. Fails if a game is already active on it
-    pub fn delete_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
-        if self.arenas.contains_key(arena) {
+    pub fn remove_arena(&mut self, arena: &str) -> Result<(), ArenaError> {
+        if !self.arenas.contains_key(arena) {
             Err(ArenaError::NoSuchArena(arena.to_string()))
         } else {
-            if self.arenas[arena].locked {
+            if self.arenas[arena].occupied {
                 Err(ArenaError::Occupied)
             } else {
                 self.arenas.remove(arena);
@@ -129,14 +105,17 @@ impl Configuration {
         self.arenas.contains_key(arena)
     }
 
-    /// Returns a list of all the arenas' names.
-    pub fn list_arenas(&self) -> Vec<&str> {
-        self.arenas.keys().map(|key| key.as_str()).collect()
+    /// Returns a list of all the arenas.
+    pub fn list_arenas(&self) -> Vec<(&str, &Arena)> {
+        self.arenas
+            .iter()
+            .map(|(key, arena)| (key.as_str(), arena))
+            .collect()
     }
 
     /// Attempts to get a read-only reference to an arena.
     /// Fails if the arena doesn't exist.
-    pub fn get_arena_ref(&self, arena: &str) -> Result<&Arena, ArenaError> {
+    pub fn get_arena(&self, arena: &str) -> Result<&Arena, ArenaError> {
         self.arenas
             .get(arena)
             .ok_or_else(|| ArenaError::NoSuchArena(arena.to_string()))
@@ -146,7 +125,7 @@ impl Configuration {
     /// if a game is already active on it, or if the arena doesn't exist.
     pub fn get_arena_mut(&mut self, arena: &str) -> Result<&mut Arena, ArenaError> {
         if let Some(arena) = self.arenas.get_mut(arena) {
-            if arena.locked {
+            if arena.occupied {
                 Err(ArenaError::Occupied)
             } else {
                 Ok(arena)

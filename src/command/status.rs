@@ -1,16 +1,14 @@
 use crate::arena::ArenaError;
 use crate::command::ARG_ARENA;
-use crate::data::OK_COLOR;
 use crate::data::SpleefData;
 use pumpkin_plugin_api::command::{CommandError, CommandNode, CommandSender, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::{Arg, ArgumentType, StringType};
 use pumpkin_plugin_api::commands::CommandHandler;
 use pumpkin_plugin_api::server::Server;
-use pumpkin_plugin_api::text::TextComponent;
 
-struct AddCommandExecutor;
+struct StatusCommandExecutor;
 
-impl CommandHandler for AddCommandExecutor {
+impl CommandHandler for StatusCommandExecutor {
     fn handle(
         &self,
         sender: CommandSender,
@@ -23,26 +21,21 @@ impl CommandHandler for AddCommandExecutor {
             )));
         };
 
-        let mut data = SpleefData::get();
-        data.config
-            .add_arena(&arena)
-            .map_err(ArenaError::command_error)?;
+        let (errors, warnings) = SpleefData::get()
+            .config
+            .get_arena(&arena)
+            .map_err(ArenaError::command_error)?
+            .send_errors_and_warnings(&sender);
 
-        sender.send_message({
-            let text = TextComponent::text(&format!("Successfully added the arena {arena}."));
-            text.color_rgb(OK_COLOR);
-            text
-        });
-
-        Ok(1)
+        Ok((errors + warnings) as i32)
     }
 }
 
-pub fn add() -> CommandNode {
-    let node = CommandNode::literal("add");
+pub fn status() -> CommandNode {
+    let node = CommandNode::literal("status");
     node.then(
         CommandNode::argument(ARG_ARENA, &ArgumentType::String(StringType::SingleWord))
-            .execute(AddCommandExecutor),
+            .execute(StatusCommandExecutor),
     );
     node
 }

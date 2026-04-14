@@ -298,7 +298,7 @@ dependencies = [
 [[package]]
 name = "pumpkin-plugin-api"
 version = "0.1.0"
-source = "git+https://github.com/Pumpkin-MC/Pumpkin#a7ebad7eeefe4ba1aa800d72d1bcb39d2aa4f0d2"
+source = "git+https://github.com/Pumpkin-MC/Pumpkin#c06ae2715b69f4337cf24d54ceb880bc2e1d5b68"
 dependencies = [
  "postcard",
  "tracing",

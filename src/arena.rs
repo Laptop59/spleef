@@ -1,9 +1,13 @@
-use pumpkin_plugin_api::common::BlockPosition;
+use crate::data::{ERROR_COLOR, OK_COLOR, WARNING_COLOR};
+use pumpkin_plugin_api::command::{CommandError, CommandSender};
+use pumpkin_plugin_api::common::{BlockPosition, NamedColor};
 use pumpkin_plugin_api::server::Player;
+use pumpkin_plugin_api::text::TextComponent;
 use pumpkin_plugin_api::world::BlockPos;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
+use thiserror::Error;
 
 /// Represents an arena. Up to a maximum
 /// of one game can take place at an arena, at a time.
@@ -37,11 +41,12 @@ pub struct Arena {
     /// Materials allowed to be broken for the game.
     /// Strings here are blocks.
     ///
-    /// By default, it is set to be snow blocks only
+    /// By default, it is set to be snow blocks only.
     pub materials: Vec<String>,
 
     /// Returns whether this arena is locked.
-    pub locked: bool,
+    #[serde(skip)]
+    pub occupied: bool,
 }
 
 impl Default for Arena {
@@ -55,18 +60,18 @@ impl Default for Arena {
             min_players: 2,
             max_players: None,
             materials: vec!["minecraft:snow_block".into()],
-            locked: false,
+            occupied: false,
         }
     }
 }
 
 impl Arena {
     pub fn is_playable(&self) -> bool {
-        self.map_region.is_some() && self.spawn.is_some()
+        self.errors().is_empty()
     }
 
     pub fn min_players(&self) -> usize {
-        self.min_players
+        self.min_players.min(2)
     }
 
     pub fn max_players(&self) -> Option<usize> {
@@ -78,12 +83,81 @@ impl Arena {
         self.spawn
     }
 
-    pub fn lobby(&self) -> Option<Location> {
-        self.lobby.or(self.spawn)
+    pub fn errors(&self) -> Vec<ArenaError> {
+        let mut errors = Vec::new();
+
+        if self.map_region.is_none() {
+            errors.push(ArenaError::UnsetMapRegion);
+        }
+        if self.spawn.is_none() {
+            errors.push(ArenaError::UnsetSpawnPoint);
+        }
+        if self.occupied {
+            errors.push(ArenaError::Occupied);
+        }
+
+        errors
     }
 
-    pub fn spectator(&self) -> Option<Location> {
-        self.spectator.or(self.spawn)
+    pub fn warnings(&self) -> Vec<ArenaError> {
+        let mut warnings = Vec::new();
+
+        if self.lobby.is_none() {
+            warnings.push(ArenaError::UnsetLobbyLocation);
+        }
+        if self.spectator.is_none() {
+            warnings.push(ArenaError::UnsetSpectatorLocation);
+        }
+
+        warnings
+    }
+
+    /// Sends only errors to the sender, returning the number of them sent.
+    pub fn send_errors(&self, sender: &CommandSender) -> usize {
+        let errors = self.errors();
+
+        if errors.is_empty() {
+            let text = TextComponent::text("No errors found! :)");
+            text.color_rgb(OK_COLOR);
+            sender.send_message(text);
+        } else {
+            let text = TextComponent::text("Errors were found with the arena:");
+            text.color_rgb(ERROR_COLOR);
+            sender.send_message(text);
+
+            for error in &errors {
+                let text = TextComponent::text(&format!("❌ {error}"));
+                text.color_rgb(ERROR_COLOR);
+                sender.send_message(text);
+            }
+        }
+
+        errors.len()
+    }
+
+    /// Sends only warnings to the sender, returning the number of them sent.
+    pub fn send_warnings(&self, sender: &CommandSender) -> usize {
+        let warnings = self.warnings();
+
+        if !warnings.is_empty() {
+            let text = TextComponent::text("Warnings were found with the arena:");
+            text.color_rgb(WARNING_COLOR);
+            sender.send_message(text);
+
+            for warning in &warnings {
+                let text = TextComponent::text(&format!("⚠ {warning}"));
+                text.color_rgb(WARNING_COLOR);
+                sender.send_message(text);
+            }
+        }
+
+        warnings.len()
+    }
+
+    /// Sends both errors and warnings to the sender, and
+    /// returns a tuple in the form `(errors_found, warnings_found)`.
+    pub fn send_errors_and_warnings(&self, sender: &CommandSender) -> (usize, usize) {
+        (self.send_errors(sender), self.send_warnings(sender))
     }
 }
 
@@ -180,5 +254,62 @@ impl fmt::Display for Location {
             "{:.2}, {:.2}, {:.2} [{:.2}, {:.2}]",
             self.x, self.y, self.z, self.yaw, self.pitch
         )
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ArenaError {
+    /// No arena exists with the given name.
+    #[error("No such arena exists with the name {0}!")]
+    NoSuchArena(String),
+
+    /// An arena already exists with the given name.
+    #[error("An arena already exists with the name {0}!")]
+    AlreadyExists(String),
+
+    /// A game is already using this arena.
+    #[error("A game has already occupied this arena!")]
+    Occupied,
+
+    /// The map region was not set.
+    #[error("The map region is not set!")]
+    UnsetMapRegion,
+
+    /// The spawn point was not set.
+    #[error("The spawn point is not set!")]
+    UnsetSpawnPoint,
+
+    /// The lobby location was not set.
+    #[error("The lobby location is not set! It will default to the spawn point instead.")]
+    UnsetLobbyLocation,
+
+    /// The spectator location was not set.
+    #[error("The spectator location is not set! It will default to the spawn point instead.")]
+    UnsetSpectatorLocation,
+
+    /// Errors were found in the arena which must be resolved.
+    #[error(
+        "Unresolved error(s) were found in the arena! You must resolve them first! Use /spleef status to check the errors."
+    )]
+    UnresolvedArenaErrors,
+
+    /// The game has already started, so no one can join.
+    #[error("That game has already started!")]
+    GameAlreadyStarted,
+
+    /// There was an attempt to join a game the player is already in.
+    #[error("You're already in the game!")]
+    AlreadyJoinedGame
+}
+
+impl ArenaError {
+    pub fn command_error(self) -> CommandError {
+        CommandError::CommandFailed(TextComponent::text(&self.to_string()))
+    }
+
+    pub fn text_component(self) -> TextComponent {
+        let text_component = TextComponent::text(&self.to_string());
+        text_component.color_named(NamedColor::Red);
+        text_component
     }
 }

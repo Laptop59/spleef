@@ -2,6 +2,7 @@ mod arena;
 mod command;
 mod config;
 mod data;
+mod event_handler;
 mod game;
 
 use crate::data::SpleefData;

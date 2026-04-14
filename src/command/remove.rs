@@ -8,9 +8,9 @@ use pumpkin_plugin_api::commands::CommandHandler;
 use pumpkin_plugin_api::server::Server;
 use pumpkin_plugin_api::text::TextComponent;
 
-struct AddCommandExecutor;
+struct RemoveCommandExecutor;
 
-impl CommandHandler for AddCommandExecutor {
+impl CommandHandler for RemoveCommandExecutor {
     fn handle(
         &self,
         sender: CommandSender,
@@ -25,24 +25,21 @@ impl CommandHandler for AddCommandExecutor {
 
         let mut data = SpleefData::get();
         data.config
-            .add_arena(&arena)
+            .remove_arena(&arena)
             .map_err(ArenaError::command_error)?;
 
-        sender.send_message({
-            let text = TextComponent::text(&format!("Successfully added the arena {arena}."));
-            text.color_rgb(OK_COLOR);
-            text
-        });
-
+        let text = TextComponent::text(&format!("Successfully removed the arena {arena}."));
+        text.color_rgb(OK_COLOR);
+        sender.send_message(text);
         Ok(1)
     }
 }
 
-pub fn add() -> CommandNode {
-    let node = CommandNode::literal("add");
+pub fn remove() -> CommandNode {
+    let node = CommandNode::literal("remove");
     node.then(
         CommandNode::argument(ARG_ARENA, &ArgumentType::String(StringType::SingleWord))
-            .execute(AddCommandExecutor),
+            .execute(RemoveCommandExecutor),
     );
     node
 }
