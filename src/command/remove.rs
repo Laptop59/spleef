@@ -28,9 +28,10 @@ impl CommandHandler for RemoveCommandExecutor {
             .remove_arena(&arena)
             .map_err(ArenaError::command_error)?;
 
-        let text = TextComponent::text(&format!("Successfully removed the arena {arena}."));
-        text.color_rgb(OK_COLOR);
-        sender.send_message(text);
+        sender.send_message(
+            TextComponent::text(&format!("Successfully removed the arena {arena}."))
+                .color_rgb(OK_COLOR),
+        );
         Ok(1)
     }
 }

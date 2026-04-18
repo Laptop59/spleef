@@ -13,7 +13,6 @@ use std::sync::MutexGuard;
 
 #[derive(Copy, Clone, Debug)]
 enum SetLocationProperty {
-    Spawn,
     Lobby,
     Spectator,
 }
@@ -36,7 +35,6 @@ impl CommandHandler for SetLocationCommandExecutor {
         };
 
         let (location, name) = match self.0 {
-            SetLocationProperty::Spawn => (&mut arena.spawn, "spawn"),
             SetLocationProperty::Lobby => (&mut arena.lobby, "lobby"),
             SetLocationProperty::Spectator => (&mut arena.spectator, "spectator"),
         };
@@ -45,15 +43,14 @@ impl CommandHandler for SetLocationCommandExecutor {
         *location = Some(new_location);
 
         sender.send_message({
-            let text = TextComponent::text(&format!("Set the {name} location to "));
-            text.color_rgb(OK_COLOR);
-            text.add_child({
-                let text2 = TextComponent::text(&new_location.to_string());
-                text2.color_named(NamedColor::White);
-                text2
-            });
-            text.add_text(".");
-            text
+            TextComponent::text(&format!("Set the {name} location to "))
+                .color_rgb(OK_COLOR)
+                .add_child({
+                    let text2 = TextComponent::text(&new_location.to_string());
+                    text2.color_named(NamedColor::White);
+                    text2
+                })
+                .add_text(".")
         });
 
         Ok(1)
@@ -64,6 +61,7 @@ impl CommandHandler for SetLocationCommandExecutor {
 enum SetIntegerProperty {
     MinPlayers,
     MaxPlayers,
+    AutoStart,
 }
 
 struct SetIntegerCommandExecutor {
@@ -100,41 +98,49 @@ impl CommandHandler for SetIntegerCommandExecutor {
         let mut data = SpleefData::get();
         let arena = parse_arena(&mut data, &args)?;
 
-        let (name, default_value) = match self.property {
+        let (name, default_value, value_prefix, value_suffix) = match self.property {
             SetIntegerProperty::MinPlayers => {
                 arena.min_players = value.unwrap_or(2);
-                ("minimum number of players required", "2")
+                ("minimum number of players required", "2", "", "")
             }
             SetIntegerProperty::MaxPlayers => {
                 arena.max_players = value;
-                ("maximum number of players allowed", "∞")
+                ("maximum number of players allowed", "∞", "", "")
+            }
+            SetIntegerProperty::AutoStart => {
+                arena.auto_start = value;
+                (
+                    "game",
+                    "never start automatically",
+                    "start automatically in ",
+                    " second(s)",
+                )
             }
         };
 
         if let Some(value) = value {
-            sender.send_message({
-                let text = TextComponent::text(&format!("Set the {name} to "));
-                text.color_rgb(OK_COLOR);
-                text.add_child({
-                    let text2 = TextComponent::text(&value.to_string());
-                    text2.color_named(NamedColor::White);
-                    text2
-                });
-                text.add_text(".");
-                text
-            });
+            sender.send_message(
+                TextComponent::text(&format!("Set the {name} to "))
+                    .color_rgb(OK_COLOR)
+                    .add_child({
+                        let text2 =
+                            TextComponent::text(&format!("{value_prefix}{value}{value_suffix}"));
+                        text2.color_named(NamedColor::White);
+                        text2
+                    })
+                    .add_text("."),
+            );
         } else {
-            sender.send_message({
-                let text = TextComponent::text(&format!("Reset the {name} to its default value "));
-                text.color_rgb(OK_COLOR);
-                text.add_child({
-                    let text2 = TextComponent::text(default_value);
-                    text2.color_named(NamedColor::White);
-                    text2
-                });
-                text.add_text(".");
-                text
-            });
+            sender.send_message(
+                TextComponent::text(&format!("Reset the {name} to its default value "))
+                    .color_rgb(OK_COLOR)
+                    .add_child({
+                        let text2 = TextComponent::text(default_value);
+                        text2.color_named(NamedColor::White);
+                        text2
+                    })
+                    .add_text("."),
+            );
         }
 
         Ok(1)
@@ -270,10 +276,6 @@ pub fn set() -> CommandNode {
     let node = CommandNode::literal("set");
     let set = CommandNode::argument(ARG_ARENA, &ArgumentType::String(StringType::SingleWord));
     set.then(
-        CommandNode::literal("spawn")
-            .execute(SetLocationCommandExecutor(SetLocationProperty::Spawn)),
-    );
-    set.then(
         CommandNode::literal("lobby")
             .execute(SetLocationCommandExecutor(SetLocationProperty::Lobby)),
     );
@@ -291,6 +293,12 @@ pub fn set() -> CommandNode {
         "max_players",
         SetIntegerProperty::MaxPlayers,
         Some(2),
+        None,
+    ));
+    set.then(create_set_integer_node(
+        "auto_start",
+        SetIntegerProperty::AutoStart,
+        Some(0),
         None,
     ));
     set.then(create_set_region_node(

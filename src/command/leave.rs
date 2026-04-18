@@ -3,10 +3,10 @@ use crate::data::SpleefData;
 use pumpkin_plugin_api::command::{CommandError, CommandNode, CommandSender, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::{Arg, ArgumentType};
 use pumpkin_plugin_api::commands::CommandHandler;
+use pumpkin_plugin_api::common::NamedColor;
 use pumpkin_plugin_api::server::Server;
 use pumpkin_plugin_api::text::TextComponent;
 use std::ops::DerefMut;
-use pumpkin_plugin_api::common::NamedColor;
 use uuid::Uuid;
 
 struct LeaveCommandExecutor {
@@ -41,8 +41,11 @@ impl CommandHandler for LeaveCommandExecutor {
 
         let mut successes: i32 = 0;
         for player in players {
-            data.game_manager
-                .remove_player(&Uuid::parse_str(&player.get_id()).expect("Pumpkin did not return a valid UUID string"), &server);
+            data.game_manager.remove_player(
+                &Uuid::parse_str(&player.get_id())
+                    .expect("Pumpkin did not return a valid UUID string"),
+                &server,
+            );
 
             successes += 1;
         }
@@ -65,15 +68,11 @@ impl CommandHandler for LeaveCommandExecutor {
 pub fn leave() -> CommandNode {
     let node = CommandNode::literal("leave");
     node.then(
-        CommandNode::argument(ARG_TARGET, &ArgumentType::Players).execute(
-            LeaveCommandExecutor {
-                sender_is_target: false,
-            },
-        )
+        CommandNode::argument(ARG_TARGET, &ArgumentType::Players).execute(LeaveCommandExecutor {
+            sender_is_target: false,
+        }),
     );
-    node.execute(
-        LeaveCommandExecutor {
-            sender_is_target: true,
-        },
-    )
+    node.execute(LeaveCommandExecutor {
+        sender_is_target: true,
+    })
 }

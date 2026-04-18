@@ -4,10 +4,10 @@ use crate::data::SpleefData;
 use pumpkin_plugin_api::command::{CommandError, CommandNode, CommandSender, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::{Arg, ArgumentType, StringType};
 use pumpkin_plugin_api::commands::CommandHandler;
+use pumpkin_plugin_api::common::NamedColor;
 use pumpkin_plugin_api::server::Server;
 use pumpkin_plugin_api::text::TextComponent;
 use std::ops::DerefMut;
-use pumpkin_plugin_api::common::NamedColor;
 use uuid::Uuid;
 
 struct JoinCommandExecutor {
@@ -54,13 +54,12 @@ impl CommandHandler for JoinCommandExecutor {
 
         let mut successes: i32 = 0;
         for player in players {
-            let join_result = data.game_manager
-                .join_player(
-                    &arena,
-                    Uuid::parse_str(&player.get_id())
-                        .expect("Pumpkin did not return a valid UUID string"),
-                    &server,
-                );
+            let join_result = data.game_manager.join_player(
+                &arena,
+                Uuid::parse_str(&player.get_id())
+                    .expect("Pumpkin did not return a valid UUID string"),
+                &server,
+            );
 
             if let Err(error) = join_result {
                 sender.send_message(error.text_component());

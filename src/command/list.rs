@@ -12,11 +12,9 @@ impl CommandHandler for ListCommandExecutor {
         _server: Server,
         _args: ConsumedArgs,
     ) -> pumpkin_plugin_api::Result<i32, CommandError> {
-        sender.send_message({
-            let text = TextComponent::text("List of registered spleef arenas:");
-            text.color_rgb(OK_COLOR);
-            text
-        });
+        sender.send_message(
+            TextComponent::text("List of registered spleef arenas:").color_rgb(OK_COLOR),
+        );
 
         let data = SpleefData::get();
         let list = data.config.list_arenas();
@@ -28,22 +26,19 @@ impl CommandHandler for ListCommandExecutor {
                 let errors = arena.errors();
                 let warnings = arena.warnings();
 
-                text.click_suggest_command(&format!("/spleef status {name}"));
-                text.hover_show_text(TextComponent::text(
-                    "Click to copy the status command for this arena.",
-                ));
-
-                text.color_rgb({
-                    if !errors.is_empty() {
-                        ERROR_COLOR
-                    } else if !warnings.is_empty() {
-                        WARNING_COLOR
-                    } else {
-                        OK_COLOR
-                    }
-                });
-
-                text
+                text.click_suggest_command(&format!("/spleef status {name}"))
+                    .hover_show_text(TextComponent::text(
+                        "Click to copy the status command for this arena.",
+                    ))
+                    .color_rgb({
+                        if !errors.is_empty() {
+                            ERROR_COLOR
+                        } else if !warnings.is_empty() {
+                            WARNING_COLOR
+                        } else {
+                            OK_COLOR
+                        }
+                    })
             });
         }
 

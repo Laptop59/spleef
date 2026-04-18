@@ -1,20 +1,22 @@
 use crate::arena::Region;
 use crate::command::add::add;
 use crate::command::join::join;
+use crate::command::leave::leave;
 use crate::command::list::list;
 use crate::command::remove::remove;
 use crate::command::set::set;
+use crate::command::spawn::spawn;
 use crate::command::status::status;
 use pumpkin_plugin_api::command::{Command, CommandError, ConsumedArgs};
 use pumpkin_plugin_api::command_wit::Arg;
-use crate::command::leave::leave;
 
 mod add;
 mod join;
-mod list;
 mod leave;
+mod list;
 mod remove;
 mod set;
+mod spawn;
 mod status;
 
 pub static ARG_ARENA: &str = "arena";
@@ -49,6 +51,7 @@ pub fn init_command_tree() -> Command {
     command.then(list());
     command.then(leave());
     command.then(set());
+    command.then(spawn());
     command.then(status());
     command.then(remove());
     command

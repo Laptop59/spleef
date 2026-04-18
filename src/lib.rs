@@ -4,6 +4,8 @@ mod config;
 mod data;
 mod event_handler;
 mod game;
+mod translation;
+mod vault;
 
 use crate::data::SpleefData;
 use pumpkin_plugin_api::{Context, Plugin, PluginMetadata};
@@ -22,6 +24,7 @@ impl Plugin for SpleefPlugin {
             version: env!("CARGO_PKG_VERSION").into(),
             authors: vec!["Laptop59".into()],
             description: "A simple spleef plugin".into(),
+            dependencies: Vec::new()
         }
     }
 

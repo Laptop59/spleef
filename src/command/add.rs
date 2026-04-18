@@ -28,11 +28,10 @@ impl CommandHandler for AddCommandExecutor {
             .add_arena(&arena)
             .map_err(ArenaError::command_error)?;
 
-        sender.send_message({
-            let text = TextComponent::text(&format!("Successfully added the arena {arena}."));
-            text.color_rgb(OK_COLOR);
-            text
-        });
+        sender.send_message(
+            TextComponent::text(&format!("Successfully added the arena {arena}."))
+                .color_rgb(OK_COLOR),
+        );
 
         Ok(1)
     }

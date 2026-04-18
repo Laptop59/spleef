@@ -2,6 +2,7 @@ use crate::command::init_command_tree;
 use crate::config::{CONFIG_FILE_NAME, Configuration};
 use crate::event_handler::register_event_handlers;
 use crate::game::GameManager;
+use crate::vault::{VAULTS_FOLDER_NAME, Vault};
 use pumpkin_plugin_api::Context;
 use pumpkin_plugin_api::permission::{Permission, PermissionDefault};
 use pumpkin_plugin_api::text::RgbColor;
@@ -33,6 +34,9 @@ pub struct SpleefData {
     /// The current configuration of the plugin.
     pub config: Configuration,
 
+    /// The vault of the plugin.
+    pub vault: Vault,
+
     /// Represents the path to the configuration file.
     pub config_file: PathBuf,
 
@@ -61,12 +65,17 @@ impl SpleefData {
         };
 
         self.config = Configuration::load_from_disk_and_print(&self.config_file);
+        self.vault = Vault::new({
+            let folder = context.get_data_folder();
+            let mut path: PathBuf = folder.into();
+            path.push(VAULTS_FOLDER_NAME);
+            path
+        });
 
         context.register_permission(&Permission {
             // This has to have the same name space as provided in your PluginMetadata
             node: "spleef:main".to_string(),
-            description: "Default permission to access the non-admin spleef subcommands"
-                .to_string(),
+            description: "Minimum permission required to access any spleef subcommand".to_string(),
             default: PermissionDefault::Allow,
             children: Vec::new(),
         })?;

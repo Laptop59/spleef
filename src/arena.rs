@@ -1,9 +1,9 @@
 use crate::data::{ERROR_COLOR, OK_COLOR, WARNING_COLOR};
 use pumpkin_plugin_api::command::{CommandError, CommandSender};
 use pumpkin_plugin_api::common::{BlockPosition, NamedColor};
-use pumpkin_plugin_api::server::Player;
+use pumpkin_plugin_api::server::{Player, Server};
 use pumpkin_plugin_api::text::TextComponent;
-use pumpkin_plugin_api::world::BlockPos;
+use pumpkin_plugin_api::world::{BlockPos, Position};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Formatter;
@@ -21,8 +21,10 @@ pub struct Arena {
     /// kill the player anyway.
     pub death_zone: Option<Region>,
 
-    /// Represents the spawn location of the players upon the game starting.
-    pub spawn: Option<Location>,
+    /// Represents the spawn locations of the players upon the game starting.
+    /// There must be at least one, though it is preferred to have many so that
+    /// players don't spawn in the same location.
+    pub spawn: Vec<Location>,
 
     /// Represents the lobby location of the players before the game starts.
     /// If unspecified, this will default to the spawn point.
@@ -44,6 +46,12 @@ pub struct Arena {
     /// By default, it is set to be snow blocks only.
     pub materials: Vec<String>,
 
+    /// Whether the game automatically starts after
+    /// a certain number of people join (the minimum)
+    /// and if so, in seconds.
+    /// If not, the game must be started manually.
+    pub auto_start: Option<usize>,
+
     /// Returns whether this arena is locked.
     #[serde(skip)]
     pub occupied: bool,
@@ -54,13 +62,14 @@ impl Default for Arena {
         Self {
             map_region: None,
             death_zone: None,
-            spawn: None,
+            spawn: Vec::new(),
             lobby: None,
             spectator: None,
             min_players: 2,
             max_players: None,
             materials: vec!["minecraft:snow_block".into()],
             occupied: false,
+            auto_start: Some(30),
         }
     }
 }
@@ -79,18 +88,14 @@ impl Arena {
         self.max_players.map(|max| max.max(self.min_players()))
     }
 
-    pub fn spawn(&self) -> Option<Location> {
-        self.spawn
-    }
-
     pub fn errors(&self) -> Vec<ArenaError> {
         let mut errors = Vec::new();
 
         if self.map_region.is_none() {
             errors.push(ArenaError::UnsetMapRegion);
         }
-        if self.spawn.is_none() {
-            errors.push(ArenaError::UnsetSpawnPoint);
+        if self.spawn.is_empty() {
+            errors.push(ArenaError::NoSpawnPoints);
         }
         if self.occupied {
             errors.push(ArenaError::Occupied);
@@ -107,6 +112,11 @@ impl Arena {
         }
         if self.spectator.is_none() {
             warnings.push(ArenaError::UnsetSpectatorLocation);
+        }
+        if !self.spawn.is_empty()
+            && self.spawn.len() < self.max_players().unwrap_or(self.min_players())
+        {
+            warnings.push(ArenaError::TooLittleSpawnPoints);
         }
 
         warnings
@@ -245,6 +255,15 @@ impl Location {
             pitch: player.get_pitch(),
         }
     }
+
+    pub fn teleport(&self, player: &Player) {
+        player.teleport(
+            (self.x, self.y, self.z),
+            Some(self.yaw),
+            Some(self.pitch),
+            player.get_world(),
+        );
+    }
 }
 
 impl fmt::Display for Location {
@@ -276,8 +295,12 @@ pub enum ArenaError {
     UnsetMapRegion,
 
     /// The spawn point was not set.
-    #[error("The spawn point is not set!")]
-    UnsetSpawnPoint,
+    #[error("No spawn points are set! Set them with /spleef spawn.")]
+    NoSpawnPoints,
+
+    /// The spawn point was not set.
+    #[error("You have set too little spawn locations! Set more with /spleef spawn.")]
+    TooLittleSpawnPoints,
 
     /// The lobby location was not set.
     #[error("The lobby location is not set! It will default to the spawn point instead.")]
@@ -299,7 +322,11 @@ pub enum ArenaError {
 
     /// There was an attempt to join a game the player is already in.
     #[error("You're already in the game!")]
-    AlreadyJoinedGame
+    AlreadyJoinedGame,
+
+    /// Too little players are in the game to start.
+    #[error("There aren't enough players to start the game!")]
+    NotEnoughPlayers,
 }
 
 impl ArenaError {
